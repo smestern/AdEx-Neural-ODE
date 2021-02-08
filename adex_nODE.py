@@ -8,11 +8,19 @@ import torch.nn as nn
 from torchdiffeq import odeint, odeint_adjoint
 from torchdiffeq import odeint_event
 
+
+
 torch.set_default_dtype(torch.float64)
-if torch.cuda.is_available():
-    device = torch.device('cuda')
-else:
-    device = torch.device('cpu')
+
+#Does not seem to speed up if its on GPU
+#if torch.cuda.is_available():
+#    device = torch.device('cuda')
+#else:
+device = torch.device('cpu')
+
+
+
+
 class AdEx(nn.Module):
 
     def __init__(self, V_rest=-0.068, adjoint=False):
@@ -102,12 +110,12 @@ if __name__ == "__main__":
     for p in system.parameters():
         p.requires_grad = False
     system.V_rest.requires_grad =True
-    optim = torch.optim.SGD(system.parameters(), lr=5e-4)
+    optim = torch.optim.Adam(system.parameters(), lr=5e-4)
     for epoch in np.arange(50):
         optim.zero_grad()
         times, voltage2, adapt2 = system.simulate()
-
-        loss = torch.square((voltage - voltage2)).sum()
+        
+        loss = (voltage - voltage2).sum()
         loss.backward(retain_graph=True)
         
         optim.step() #gradient descent
