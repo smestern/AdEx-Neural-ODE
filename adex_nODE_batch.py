@@ -32,9 +32,9 @@ class AdEx(nn.Module):
         self.V_thres = nn.Parameter(torch.as_tensor([-0.010]))
         self.delta_T = nn.Parameter(torch.as_tensor([0.005]))
         self.t0 = nn.Parameter(torch.tensor([0.0]))
-        self.V_intial = nn.Parameter(torch.tensor([-0.068]))
-        self.w_intial = nn.Parameter(torch.tensor([0.0]))
-        self.R = nn.Parameter(torch.tensor([200e6]))
+        self.V_intial = nn.Parameter(torch.tensor(np.vstack([-0.068, -0.068])))
+        self.w_intial = nn.Parameter(torch.tensor(np.vstack([0.0, 0.0])))
+        self.R = nn.Parameter(torch.tensor(np.vstack([200e6, 500e6])))
         self.tau = nn.Parameter(torch.tensor([0.01]))
         self.tau_w = nn.Parameter(torch.tensor([0.02]))
         self.a = nn.Parameter(torch.tensor([3.e-9]))
@@ -93,17 +93,17 @@ class AdEx(nn.Module):
         solution = odeint(self, state, self.t, atol=1e-8, rtol=1e-8, method='euler', options={'step_size':self.step_size})
         voltage = solution[0]
         adapt = solution[1]
-        return self.t, voltage.reshape(-1), adapt.reshape(-1)
+        return self.t, torch.transpose(voltage, 0,1), torch.transpose(adapt, 0, 1)
 
 
 
 
 if __name__ == "__main__":
 
-    system = AdEx().to(device)
+    system = AdEx(V_rest=np.vstack([-0.068, -0.068])).to(device)
     times, voltage, adapt = system.simulate()
     
-    system = AdEx(V_rest=-0.08).to(device)
+    system = AdEx(V_rest=np.vstack([-0.08, -0.09])).to(device)
 
     plt.figure(figsize=(7, 3.5))
 
@@ -111,7 +111,7 @@ if __name__ == "__main__":
         p.requires_grad = False
     system.V_rest.requires_grad =True
     optim = torch.optim.Adam(system.parameters(), lr=5e-4)
-    for epoch in np.arange(10):
+    for epoch in np.arange(30):
         optim.zero_grad()
         times, voltage2, adapt2 = system.simulate()
         
@@ -122,18 +122,18 @@ if __name__ == "__main__":
         print(loss)
         print(system.V_rest)
     times_ = times.detach().cpu().numpy()
-    voltage_ = voltage.detach().cpu().numpy() * 1000
-    adapt_ = adapt.detach().cpu().numpy() * 1000
+    voltage_ = voltage.detach().cpu().numpy().reshape(-1, 2) * 1000
+    adapt_ = adapt.detach().cpu().numpy().reshape(-1, 2) * 1000
         
 
         
     plt.clf()
         
 
-    vel, = plt.plot(times_, adapt_, color="C1", alpha=0.00001, linestyle="--", linewidth=2.0)
-    pos, = plt.plot(times_, voltage_, color="C0", linewidth=2.0)
+    vel, = plt.plot(times_, adapt_[:, 0], color="C1", alpha=0.00001, linestyle="--", linewidth=2.0)
+    pos, = plt.plot(times_, voltage_[:,0], color="C0", linewidth=2.0)
        # _, = plt.plot(times_, adapt2.detach().cpu().numpy(), color="r", alpha=0.7, linestyle="--", linewidth=2.0)
-    _, = plt.plot(times_, voltage2.detach().cpu().numpy()*1000, color="r", linewidth=2.0)
+    _, = plt.plot(times_, voltage2.detach().cpu().numpy().reshape(-1, 2)[:,0]*1000, color="r", linewidth=2.0)
     plt.hlines(0, 0, 100)
     plt.xlim([times[0], times[-1]])
     plt.ylim([-100, 20])
