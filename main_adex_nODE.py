@@ -137,7 +137,7 @@ if __name__ == "__main__":
     plt.hlines(0, 0, 100)
     plt.xlim([times[0], times[-1]])
     plt.ylim([-100, 20])
-    plt.ylabel("Markov State", fontsize=16)
+    plt.ylabel("Membrane Voltage (mV)", fontsize=16)
     plt.xlabel("Time", fontsize=13)
     plt.legend([pos, vel], ["Position", "adapt"], fontsize=16)
 

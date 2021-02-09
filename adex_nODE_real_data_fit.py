@@ -34,7 +34,7 @@ class AdEx(nn.Module):
         self.t0 = torch.tensor([0.0])
         self.V_intial = nn.Parameter(torch.tensor([-0.068]))
         self.w_intial = nn.Parameter(torch.tensor([0.0]))
-        self.R = nn.Parameter(torch.tensor([1000e6]))
+        self.R = nn.Parameter(torch.tensor([1e9]))
         self.tau = nn.Parameter(torch.tensor([0.01]))
         self.tau_w = nn.Parameter(torch.tensor([0.02]))
         self.a = nn.Parameter(torch.tensor([0.09e-9]))
@@ -43,7 +43,7 @@ class AdEx(nn.Module):
         self.t = torch.as_tensor(np.arange(0, 2, 5e-5))
         np_I = np.zeros(np.arange(0, 2, 5e-5).shape[0]+5)
         np_I[5561:11561] = -20e-12
-        np_I[11561:25561] = 20e-12
+        np_I[11561:25561] = 50e-12
         self.I_ext = torch.as_tensor(np_I)
 
         self.odeint = odeint_adjoint if adjoint else odeint
@@ -111,9 +111,9 @@ if __name__ == "__main__":
     system.V_rest.requires_grad =True
     optim = torch.optim.Adam([{
         'params': [system.b, system.a, system.w_intial], 'lr': 1e-13},
-        {'params': [system.R], 'lr': 1e5}, #Carefully define the learning rate for each parameter. Otherwise too high LR with explode the gradient, too low makes no difference on the param
+        {'params': [system.R], 'lr': 1e6}, #Carefully define the learning rate for each parameter. Otherwise too high LR with explode the gradient, too low makes no difference on the param
         {'params': [system.V_rest, system.V_reset, system.V_T, system.delta_T, system.V_intial, system.tau, system.tau_w]}], lr=1e-4)
-    for epoch in np.arange(100):
+    for epoch in np.arange(500):
         optim.zero_grad()
         times, voltage2, adapt2 = system.simulate()
         
@@ -125,23 +125,17 @@ if __name__ == "__main__":
         print(loss)
         print("==== PARAMETERS ====")
         with torch.no_grad():
+            if epoch % 10 == 0:
+                torch.save(system, f"checkpoints//{epoch}_model.pkl")
             print(system.__dict__)
             times_ = times.detach().cpu().numpy()
             
-                
-
-                
             plt.clf()
-                
-
-            
             pos, = plt.plot(times_, res.detach().cpu().numpy() * 1000, color="C0", linewidth=2.0)
-           
             vel, = plt.plot(times_, voltage2.detach().cpu().numpy()*1000, color="r", linewidth=2.0)
-            plt.hlines(0, 0, 100)
             plt.xlim([times[0], times[-1]])
             plt.ylim([-100, 20])
-            plt.ylabel("Markov State", fontsize=16)
+            plt.ylabel("Membrane Voltage (mV)", fontsize=16)
             plt.xlabel("Time", fontsize=13)
             plt.legend([pos, vel], ["Position", "adapt"], fontsize=16)
 
@@ -158,4 +152,4 @@ if __name__ == "__main__":
 
             plt.tight_layout()
                 #plt.pause(0.05)
-            plt.savefig(f"{epoch}_bouncing_ball.png")
+            plt.savefig(f"output/{epoch}_fit.png")

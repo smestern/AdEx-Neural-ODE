@@ -28,8 +28,8 @@ class AdEx(nn.Module):
         #Must be in SI units
         self.V_rest = nn.Parameter(torch.as_tensor([V_rest]))
         self.V_reset = nn.Parameter(torch.as_tensor([-0.068]))
-        self.V_T = nn.Parameter(torch.as_tensor([-0.04]))
-        self.V_thres = nn.Parameter(torch.as_tensor([-0.010]))
+        self.V_T = nn.Parameter(torch.as_tensor([-0.045]))
+        self.V_thres = nn.Parameter(torch.as_tensor([0.010]))
         self.delta_T = nn.Parameter(torch.as_tensor([0.010]))
         self.t0 = torch.tensor([0.0])
         self.V_intial = nn.Parameter(torch.tensor([-0.068]))
@@ -53,7 +53,7 @@ class AdEx(nn.Module):
     def _forward_with_reset(self, t, state):
         V, w = state
         
-        dvdt = (- (V - self.V_rest) + self.delta_T * torch.exp((V - self.V_T) / self.delta_T) - self.R * w + self.R * self.I_ext[int(t//5e-5)]) / self.tau #nn.Parameter(torch.tensor([0.02]))
+        dvdt = (- (V - self.V_rest) + self.delta_T * torch.exp((V - self.V_T) / self.delta_T) - self.R * w + self.R * self.I_ext[int(t//self.step_size)]) / self.tau #nn.Parameter(torch.tensor([0.02]))
         dwdt = (self.a * (V - self.V_rest) - w) / self.tau_w
         dvdt = torch.where(V > self.V_thres, (self.V_reset-V)/self.step_size, dvdt)
         dwdt = torch.where(V > self.V_thres, dwdt + (self.b/self.step_size), dwdt)
@@ -61,7 +61,7 @@ class AdEx(nn.Module):
 
     def _forward_no_reset(self, t, state):
         V, w = state
-        dvdt = (- (V - self.V_rest) + self.delta_T * torch.exp((V - self.V_T) / self.delta_T) - self.R * w + self.R * self.I_ext[int(t//0.001)]) / self.tau #nn.Parameter(torch.tensor([0.02]))
+        dvdt = (- (V - self.V_rest) + self.delta_T * torch.exp((V - self.V_T) / self.delta_T) - self.R * w + self.R * self.I_ext[int(t//self.step_size)]) / self.tau #nn.Parameter(torch.tensor([0.02]))
         dwdt = (self.a * (V - self.V_rest) - w) / self.tau_w
         return dvdt, dwdt
 
@@ -81,7 +81,7 @@ class AdEx(nn.Module):
         w += self.b
         return (V, w)
 
-     def get_collision_times(self, nbounces=1):
+    def get_collision_times(self, nbounces=1):
 
         event_times = []
         error = True
@@ -89,7 +89,7 @@ class AdEx(nn.Module):
 
         while error:
             try:
-                event_t, solution = odeint_event(self, state, t0, event_fn=self.event_fn, reverse_time=False, atol=1e-8, rtol=1e-8, odeint_interface=self.odeint, method='euler', options={'step_size':0.00001})
+                event_t, solution = odeint_event(self, state, t0, event_fn=self.event_fn, reverse_time=False, atol=1e-8, rtol=1e-8, odeint_interface=self.odeint, method='euler', options={'step_size':self.step_size})
                 event_times.append(event_t)
 
                 state = self.state_update(tuple(s[-1] for s in solution))
@@ -117,7 +117,7 @@ class AdEx(nn.Module):
         for event_t in event_times:
             tt = torch.linspace(float(t0), float(event_t), int((float(event_t) - float(t0)) * 50000))[1:-1]
             tt = torch.cat([t0.reshape(-1), tt, event_t.reshape(-1)])
-            solution = odeint(self, state, tt, atol=1e-8, rtol=1e-8, method='euler', options={'step_size':0.0001})
+            solution = odeint(self, state, tt, atol=1e-8, rtol=1e-8, method='euler', options={'step_size':self.step_size})
 
             voltage.append(solution[0])
             adapt.append(solution[1])
