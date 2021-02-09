@@ -34,15 +34,15 @@ if __name__ == "__main__":
 
     
 
-    vel, = plt.plot(times, adapt, color="C1", alpha=0.7, linestyle="--", linewidth=2.0)
-    pos, = plt.plot(times, voltage, color="C0", linewidth=2.0)
+    volt2, = plt.plot(times, adapt, color="C1", alpha=0.7, linestyle="--", linewidth=2.0)
+    volt, = plt.plot(times, voltage, color="C0", linewidth=2.0)
 
     plt.hlines(0, 0, 100)
     plt.xlim([times[0], times[-1]])
     plt.ylim([voltage.min() - 20, 20])
     plt.ylabel("Membrane Voltage (mV)", fontsize=16)
     plt.xlabel("Time", fontsize=13)
-    plt.legend([pos, vel], ["Position", "adapt"], fontsize=16)
+    plt.legend([volt, volt2], ["Fit 1", "adapt"], fontsize=16)
 
     plt.gca().xaxis.set_tick_params(direction='in', which='both')  # The bottom will maintain the default of 'out'
     plt.gca().yaxis.set_tick_params(direction='in', which='both')  # The bottom will maintain the default of 'out'

@@ -66,7 +66,7 @@ class AdEx(nn.Module):
         return dvdt, dwdt
 
     def event_fn(self, t, state):
-        # positive if ball in mid-air, negative if ball within ground.
+        
         V, w = state
         return -(V - self.V_thres)
 
@@ -77,7 +77,7 @@ class AdEx(nn.Module):
     def state_update(self, state):
         """ Updates state based on an event (collision)."""
         V, w = state
-        V = self.V_reset  # need to add a small eps so as not to trigger the event function immediately.
+        V = self.V_reset  
         w += self.b
         return (V, w)
 

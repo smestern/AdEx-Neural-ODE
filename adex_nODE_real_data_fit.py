@@ -58,7 +58,7 @@ class AdEx(nn.Module):
         return dvdt, dwdt
 
     def event_fn(self, t, state):
-        # positive if ball in mid-air, negative if ball within ground.
+        
         V, w = state
         return -(V - self.V_thres)
 
@@ -69,7 +69,7 @@ class AdEx(nn.Module):
     def state_update(self, state):
         """ Updates state based on an event (collision)."""
         V, w = state
-        V = self.V_reset  # need to add a small eps so as not to trigger the event function immediately.
+        V = self.V_reset  
         w += self.b
         return (V, w)
 
@@ -106,12 +106,9 @@ if __name__ == "__main__":
 
     plt.figure(figsize=(7, 3.5))
 
-    #for p in system.parameters():
-    #    p.requires_grad = False
-    system.V_rest.requires_grad =True
     optim = torch.optim.Adam([{
         'params': [system.b, system.a, system.w_intial], 'lr': 1e-13},
-        {'params': [system.R], 'lr': 1e6}, #Carefully define the learning rate for each parameter. Otherwise too high LR with explode the gradient, too low makes no difference on the param
+        {'params': [system.R], 'lr': 1e7}, #Carefully define the learning rate for each parameter. Otherwise too high LR with explode the gradient, too low makes no difference on the param
         {'params': [system.V_rest, system.V_reset, system.V_T, system.delta_T, system.V_intial, system.tau, system.tau_w]}], lr=1e-4)
     for epoch in np.arange(500):
         optim.zero_grad()
@@ -131,13 +128,13 @@ if __name__ == "__main__":
             times_ = times.detach().cpu().numpy()
             
             plt.clf()
-            pos, = plt.plot(times_, res.detach().cpu().numpy() * 1000, color="C0", linewidth=2.0)
-            vel, = plt.plot(times_, voltage2.detach().cpu().numpy()*1000, color="r", linewidth=2.0)
+            volt, = plt.plot(times_, res.detach().cpu().numpy() * 1000, color="C0", linewidth=2.0)
+            volt2, = plt.plot(times_, voltage2.detach().cpu().numpy()*1000, color="r", linewidth=2.0)
             plt.xlim([times[0], times[-1]])
             plt.ylim([-100, 20])
             plt.ylabel("Membrane Voltage (mV)", fontsize=16)
             plt.xlabel("Time", fontsize=13)
-            plt.legend([pos, vel], ["Position", "adapt"], fontsize=16)
+            plt.legend([volt, volt2], ["Fit 1", "adapt"], fontsize=16)
 
             plt.gca().xaxis.set_tick_params(direction='in', which='both')  # The bottom will maintain the default of 'out'
             plt.gca().yaxis.set_tick_params(direction='in', which='both')  # The bottom will maintain the default of 'out'
