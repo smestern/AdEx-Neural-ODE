@@ -73,13 +73,13 @@ class AdEx(nn.Module):
         w += self.b
         return (V, w)
 
-    def get_collision_times(self, nbounces=1):
+    def get_collision_times(self, nspikes=1):
 
         event_times = []
 
         t0, state = self.get_initial_state()
 
-        for i in range(nbounces):
+        for i in range(nspikes):
             event_t, solution = odeint_event(self, state, t0, event_fn=self.event_fn, reverse_time=False, atol=1e-8, rtol=1e-8, odeint_interface=self.odeint, method='euler', options={'step_size':self.step_size})
             event_times.append(event_t)
 
@@ -96,18 +96,18 @@ class AdEx(nn.Module):
         return self.t, voltage.reshape(-1), adapt.reshape(-1)
 
 #Parameter constraints = 
-constraint = [[-0.08, -0.040],
-        [-0.080, -0.02],
-        [-0.060, -0.043],
-        [0.01, 0.02],
+constraint = [[-0.08, -0.040], #v_rest
+        [-0.080, -0.02], #V_reset
+        [-0.060, -0.043], #V_T
+        [0.01, 0.02], #V_thres
         [0.001, 0.02], #d_t
-        [-0.09, -0.03],
-        [0.0001, 0.1],
+        [-0.09, -0.03], #V_intial
+        [0.0001e-13, 0.1e-13],
         [1.3e9, 2.6e9],
         [0.001, 0.1],
         [0.001, 0.1],
         [1e-12, 1e-9],
-        [0.1e-12, 400e-12],
+        [0.1e-13, 40e-12],
         ]
 
 
@@ -153,7 +153,7 @@ if __name__ == "__main__":
             plt.ylim([-100, 20])
             plt.ylabel("Membrane Voltage (mV)", fontsize=16)
             plt.xlabel("Time", fontsize=13)
-            plt.legend([volt, volt2], ["Fit 1", "adapt"], fontsize=16)
+            plt.legend([volt, volt2], ["Real Trace", "Fit"], fontsize=16)
 
             plt.gca().xaxis.set_tick_params(direction='in', which='both')  # The bottom will maintain the default of 'out'
             plt.gca().yaxis.set_tick_params(direction='in', which='both')  # The bottom will maintain the default of 'out'

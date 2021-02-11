@@ -52,7 +52,8 @@ class AdEx(nn.Module):
 
     def _forward_with_reset(self, t, state):
         V, w = state
-        
+        ## Code adapted from https://github.com/PKU-NIP-Lab/BrainPy-Models
+        ## Under GPL
         dvdt = (- (V - self.V_rest) + self.delta_T * torch.exp((V - self.V_T) / self.delta_T) - self.R * w + self.R * self.I_ext[int(t//self.step_size)]) / self.tau #nn.Parameter(torch.tensor([0.02]))
         dwdt = (self.a * (V - self.V_rest) - w) / self.tau_w
         dvdt = torch.where(V > self.V_thres, (self.V_reset-V)/self.step_size, dvdt)
@@ -61,6 +62,8 @@ class AdEx(nn.Module):
 
     def _forward_no_reset(self, t, state):
         V, w = state
+        ## Code adapted from https://github.com/PKU-NIP-Lab/BrainPy-Models
+        ## Under GPL
         dvdt = (- (V - self.V_rest) + self.delta_T * torch.exp((V - self.V_T) / self.delta_T) - self.R * w + self.R * self.I_ext[int(t//self.step_size)]) / self.tau #nn.Parameter(torch.tensor([0.02]))
         dwdt = (self.a * (V - self.V_rest) - w) / self.tau_w
         return dvdt, dwdt
@@ -75,19 +78,20 @@ class AdEx(nn.Module):
         return self.t0, state
 
     def state_update(self, state):
-        """ Updates state based on an event (collision)."""
         V, w = state
         V = self.V_reset  
         w += self.b
         return (V, w)
 
-    def get_collision_times(self, nbounces=1):
+    def get_collision_times(self, nspikes=1):
 
         event_times = []
         error = True
         t0, state = self.get_initial_state()
 
         while error:
+            #This ensures we get finding events (spikes) until there are not more, but will likely break autograd
+            # come up with a way to fix it?
             try:
                 event_t, solution = odeint_event(self, state, t0, event_fn=self.event_fn, reverse_time=False, atol=1e-8, rtol=1e-8, odeint_interface=self.odeint, method='euler', options={'step_size':self.step_size})
                 event_times.append(event_t)
@@ -106,16 +110,16 @@ class AdEx(nn.Module):
         adapt = solution[1]
         return self.t, voltage.reshape(-1), adapt.reshape(-1)
 
-    def _simulate_event(self, nbounces=1):
+    def _simulate_event(self, nspikes=1):
         
         # get dense path
         t0, state = self.get_initial_state()
-        event_times = self.get_collision_times(nbounces=10)
+        event_times = self.get_collision_times(nspikes=10)
         voltage = [state[0][None]]
         adapt = [state[1][None]]
         times = [t0.reshape(-1)]
         for event_t in event_times:
-            tt = torch.linspace(float(t0), float(event_t), int((float(event_t) - float(t0)) * 50000))[1:-1]
+            tt = torch.linspace(float(t0), float(event_t), int((float(event_t) - float(t0)) * (1/self.step_size)))[1:-1]
             tt = torch.cat([t0.reshape(-1), tt, event_t.reshape(-1)])
             solution = odeint(self, state, tt, atol=1e-8, rtol=1e-8, method='euler', options={'step_size':self.step_size})
 

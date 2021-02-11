@@ -20,17 +20,20 @@ device = torch.device('cpu')
 
 
 if __name__ == "__main__":
-
+    #generate some data to fit
     system = AdEx(V_rest=np.vstack([-0.068, -0.068])).to(device)
-    times, voltage, adapt = system.simulate()
     system.V_intial = nn.Parameter(torch.tensor(np.vstack([-0.068, -0.068])))
     system.w_intial = nn.Parameter(torch.tensor(np.vstack([0.0, 0.0])))
-    system.R = nn.Parameter(torch.tensor(np.vstack([200e6, 500e6])))
-    
+    system.R = nn.Parameter(torch.tensor(np.vstack([1.200e9, 1.500e9])))
+    times, voltage, adapt = system.simulate()
+   
+
     system = AdEx(V_rest=np.vstack([-0.08, -0.09])).to(device)
     system.V_intial = nn.Parameter(torch.tensor(np.vstack([-0.068, -0.068])))
     system.w_intial = nn.Parameter(torch.tensor(np.vstack([0.0, 0.0])))
-    system.R = nn.Parameter(torch.tensor(np.vstack([200e6, 500e6])))
+    system.R = nn.Parameter(torch.tensor(np.vstack([1.200e9, 1.500e9])))
+    
+
 
     plt.figure(figsize=(7, 3.5))
 
@@ -42,12 +45,13 @@ if __name__ == "__main__":
         optim.zero_grad()
         times, voltage2, adapt2 = system.simulate()
         
-        loss = (voltage - voltage2).sum()
+        loss = torch.abs((voltage - voltage2)).sum()
         loss.backward(retain_graph=True)
         
         optim.step() #gradient descent
-        print(loss)
-        print(system.V_rest)
+        with torch.no_grad():
+            print(loss)
+            print(system.V_rest)
     times_ = times.detach().cpu().numpy()
     voltage_ = voltage.detach().cpu().numpy().reshape(-1, 2) * 1000
     adapt_ = adapt.detach().cpu().numpy().reshape(-1, 2) * 1000
