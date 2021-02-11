@@ -7,7 +7,7 @@ import torch.nn as nn
 import pyabf
 from torchdiffeq import odeint, odeint_adjoint
 from torchdiffeq import odeint_event
-
+from utils import *
 
 
 torch.set_default_dtype(torch.float64)
@@ -29,21 +29,21 @@ class AdEx(nn.Module):
         self.V_rest = nn.Parameter(torch.as_tensor([V_rest]))
         self.V_reset = nn.Parameter(torch.as_tensor([-0.068]))
         self.V_T = nn.Parameter(torch.as_tensor([-0.045]))
-        self.V_thres = nn.Parameter(torch.as_tensor([-0.010]))
+        self.V_thres = nn.Parameter(torch.as_tensor([0.020]))
         self.delta_T = nn.Parameter(torch.as_tensor([0.010]))
         self.t0 = torch.tensor([0.0])
         self.V_intial = nn.Parameter(torch.tensor([-0.068]))
         self.w_intial = nn.Parameter(torch.tensor([0.0]))
-        self.R = nn.Parameter(torch.tensor([1e9]))
-        self.tau = nn.Parameter(torch.tensor([0.01]))
+        self.R = nn.Parameter(torch.tensor([1.8e9]))
+        self.tau = nn.Parameter(torch.tensor([0.025]))
         self.tau_w = nn.Parameter(torch.tensor([0.02]))
         self.a = nn.Parameter(torch.tensor([0.09e-9]))
         self.b = nn.Parameter(torch.tensor([2e-12]))
-        self.step_size = torch.tensor(5e-5)
+        self.step_size = torch.tensor(5e-5) 
         self.t = torch.as_tensor(np.arange(0, 2, 5e-5))
         np_I = np.zeros(np.arange(0, 2, 5e-5).shape[0]+5)
         np_I[5561:11561] = -20e-12
-        np_I[11561:25561] = 50e-12
+        np_I[11561:25561] = 20e-12
         self.I_ext = torch.as_tensor(np_I)
 
         self.odeint = odeint_adjoint if adjoint else odeint
@@ -95,6 +95,20 @@ class AdEx(nn.Module):
         adapt = solution[1]
         return self.t, voltage.reshape(-1), adapt.reshape(-1)
 
+#Parameter constraints = 
+constraint = [[-0.08, -0.040],
+        [-0.080, -0.02],
+        [-0.060, -0.043],
+        [0.01, 0.02],
+        [0.001, 0.02], #d_t
+        [-0.09, -0.03],
+        [0.0001, 0.1],
+        [1.3e9, 2.6e9],
+        [0.001, 0.1],
+        [0.001, 0.1],
+        [1e-12, 1e-9],
+        [0.1e-12, 400e-12],
+        ]
 
 
 
@@ -105,16 +119,19 @@ if __name__ == "__main__":
     system = AdEx(V_rest=-0.068).to(device)
 
     plt.figure(figsize=(7, 3.5))
-
+    errorCalc = modifiedMSE()
+    constraintMod = paramConstraint(constraint)
     optim = torch.optim.Adam([{
         'params': [system.b, system.a, system.w_intial], 'lr': 1e-13},
         {'params': [system.R], 'lr': 1e7}, #Carefully define the learning rate for each parameter. Otherwise too high LR with explode the gradient, too low makes no difference on the param
         {'params': [system.V_rest, system.V_reset, system.V_T, system.delta_T, system.V_intial, system.tau, system.tau_w]}], lr=1e-4)
     for epoch in np.arange(500):
+        print(f"==== Epoch {epoch} start ====")
         optim.zero_grad()
+        system.apply(constraintMod)
         times, voltage2, adapt2 = system.simulate()
         
-        loss = torch.square((res - voltage2)).sum()
+        loss = errorCalc(res, voltage2)
         loss.backward(retain_graph=True)
         
         optim.step() #gradient descent
@@ -124,7 +141,9 @@ if __name__ == "__main__":
         with torch.no_grad():
             if epoch % 10 == 0:
                 torch.save(system, f"checkpoints//{epoch}_model.pkl")
+            
             print(system.__dict__)
+            
             times_ = times.detach().cpu().numpy()
             
             plt.clf()
