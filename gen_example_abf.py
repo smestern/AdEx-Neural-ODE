@@ -1,6 +1,6 @@
 import numpy as np
 import pyabf
-
+from ipfx import feature_extractor as sp
 
 if __name__=="__main__":
     abf = pyabf.ABF("example.abf")
@@ -20,3 +20,9 @@ if __name__=="__main__":
     #up to 2 seconds
     end_idx = int(2//dt) + 1
     np.save("example.npy", dataY[:end_idx])
+
+    #get the spike times
+    sp_ex = sp.SpikeFeatureExtractor(filter=0)
+    spikes = sp_ex.process( dataX, dataY, dataC)
+    spike_times = spikes['threshold_t'].to_numpy()
+    np.save("example_spikes.npy", spike_times)

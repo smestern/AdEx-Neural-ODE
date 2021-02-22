@@ -41,12 +41,17 @@ class AdEx(nn.Module):
         self.b = nn.Parameter(torch.tensor([2e-12]))
         self.step_size = torch.tensor(5e-5) 
         self.t = torch.as_tensor(np.arange(0, 2, 5e-5))
+        self.t.requires_grad = True
         np_I = np.zeros(np.arange(0, 2, 5e-5).shape[0]+5)
         np_I[5561:11561] = -20e-12
         np_I[11561:25561] = 20e-12
         self.I_ext = torch.as_tensor(np_I)
-
+        self.spike_times = torch.as_tensor([])
+        self.spike_times.requires_grad = True
+        self.threshold = torch.as_tensor([-0.01])
+        self.threshold.requires_grad = True
         self.odeint = odeint_adjoint if adjoint else odeint
+        self.zero = torch.as_tensor([0])
 
     def forward(self, t, state):
         V, w = state
@@ -63,8 +68,15 @@ class AdEx(nn.Module):
         return -(V - self.V_thres)
 
     def get_initial_state(self):
-        state = (self.V_intial, self.w_intial)
+        state = (self.V_intial, self.w_intial, self.)
+        self.spike_times = torch.as_tensor([])
+        self.spike_times.requires_grad = True
         return self.t0, state
+
+    def find_spikes(self, x, y, threshold):
+        spike_bin = torch.where(y>-0.01, 1., 2.)#torch.where(y>=threshold,1, 0)
+        spike_idx = torch.nonzero((spike_bin[1:] - spike_bin[:-1]))[::2].reshape(-1)
+        return torch.take(x, spike_idx)
 
     def state_update(self, state):
         """ Updates state based on an event (collision)."""
@@ -98,7 +110,7 @@ class AdEx(nn.Module):
 #Parameter constraints = 
 constraint = [[-0.08, -0.040], #v_rest
         [-0.080, -0.02], #V_reset
-        [-0.060, -0.043], #V_T
+        [-0.060, -0.045], #V_T
         [0.01, 0.02], #V_thres
         [0.001, 0.02], #d_t
         [-0.09, -0.03], #V_intial
@@ -115,25 +127,28 @@ constraint = [[-0.08, -0.040], #v_rest
 if __name__ == "__main__":
     with torch.no_grad():
         res = torch.as_tensor(np.load("example.npy")/ 1000) 
-    
+        res_spikes = torch.as_tensor(np.load("example_spikes.npy"))
     system = AdEx(V_rest=-0.068).to(device)
 
     plt.figure(figsize=(7, 3.5))
-    errorCalc = modifiedMSE()
+    errorCalc = modifiedMSE_with_spikes()
     constraintMod = paramConstraint(constraint)
+    threshold = torch.tensor([-0.01])
     optim = torch.optim.Adam([{
         'params': [system.b, system.a, system.w_intial], 'lr': 1e-13},
-        {'params': [system.R], 'lr': 1e7}, #Carefully define the learning rate for each parameter. Otherwise too high LR with explode the gradient, too low makes no difference on the param
+        {'params': [system.R], 'lr': 1e7}, #Carefully define the learning rate for each parameter. 
+        #Otherwise too high LR with explode the gradient, too low makes no difference on the param
         {'params': [system.V_rest, system.V_reset, system.V_T, system.delta_T, system.V_intial, system.tau, system.tau_w]}], lr=1e-4)
     for epoch in np.arange(500):
         print(f"==== Epoch {epoch} start ====")
         optim.zero_grad()
         system.apply(constraintMod)
         times, voltage2, adapt2 = system.simulate()
-        
-        loss = errorCalc(res, voltage2)
+        #spike_times = find_spikes(times, voltage2, threshold)
+        loss = errorCalc(res, voltage2, system.spike_times, res_spikes)
+        #loss_spikes.backward(retain_graph=True)
         loss.backward(retain_graph=True)
-        
+        plot_grad_flow(system.named_parameters())
         optim.step() #gradient descent
         print("==== loss ====")
         print(loss)
@@ -149,6 +164,8 @@ if __name__ == "__main__":
             plt.clf()
             volt, = plt.plot(times_, res.detach().cpu().numpy() * 1000, color="C0", linewidth=2.0)
             volt2, = plt.plot(times_, voltage2.detach().cpu().numpy()*1000, color="r", linewidth=2.0)
+            fspikes = np.ravel(system.spike_times.detach().cpu().numpy())
+            plt.scatter(fspikes, np.full(fspikes.shape[0], 0))
             plt.xlim([times[0], times[-1]])
             plt.ylim([-100, 20])
             plt.ylabel("Membrane Voltage (mV)", fontsize=16)
