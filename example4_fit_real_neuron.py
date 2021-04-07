@@ -51,7 +51,7 @@ class AdEx(nn.Module):
         self.threshold = torch.as_tensor([-0.01])
         self.threshold.requires_grad = True
         self.odeint = odeint_adjoint if adjoint else odeint
-        self.zero = torch.as_tensor([0])
+        
 
     def forward(self, t, state):
         V, w = state
@@ -60,6 +60,8 @@ class AdEx(nn.Module):
         dwdt = (self.a * (V - self.V_rest) - w) / self.tau_w
         dvdt = torch.where(V > self.V_thres, (self.V_reset-V)/self.step_size, dvdt)
         dwdt = torch.where(V > self.V_thres, dwdt + (self.b/self.step_size), dwdt)
+        if V > self.V_thres:
+            self.spike_times = torch.hstack((self.spike_times, t))
         return dvdt, dwdt
 
     def event_fn(self, t, state):
@@ -68,13 +70,13 @@ class AdEx(nn.Module):
         return -(V - self.V_thres)
 
     def get_initial_state(self):
-        state = (self.V_intial, self.w_intial, self.)
+        state = (self.V_intial, self.w_intial)
         self.spike_times = torch.as_tensor([])
         self.spike_times.requires_grad = True
         return self.t0, state
 
     def find_spikes(self, x, y, threshold):
-        spike_bin = torch.where(y>-0.01, 1., 2.)#torch.where(y>=threshold,1, 0)
+        spike_bin = torch.nn(y>-0.01, 1., 2.)#torch.where(y>=threshold,1, 0)
         spike_idx = torch.nonzero((spike_bin[1:] - spike_bin[:-1]))[::2].reshape(-1)
         return torch.take(x, spike_idx)
 
@@ -131,7 +133,7 @@ if __name__ == "__main__":
     system = AdEx(V_rest=-0.068).to(device)
 
     plt.figure(figsize=(7, 3.5))
-    errorCalc = modifiedMSE_with_spikes()
+    errorCalc = EMDT()
     constraintMod = paramConstraint(constraint)
     threshold = torch.tensor([-0.01])
     optim = torch.optim.Adam([{
@@ -145,10 +147,10 @@ if __name__ == "__main__":
         system.apply(constraintMod)
         times, voltage2, adapt2 = system.simulate()
         #spike_times = find_spikes(times, voltage2, threshold)
-        loss = errorCalc(res, voltage2, system.spike_times, res_spikes)
+        loss = errorCalc(res, voltage2)
         #loss_spikes.backward(retain_graph=True)
         loss.backward(retain_graph=True)
-        plot_grad_flow(system.named_parameters())
+        #plot_grad_flow(system.named_parameters())
         optim.step() #gradient descent
         print("==== loss ====")
         print(loss)
