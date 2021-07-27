@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
-from adex_node import AdEx
+from adex_nODE import AdEx
 from torchdiffeq import odeint, odeint_adjoint
 from torchdiffeq import odeint_event
 
@@ -21,10 +21,10 @@ if __name__ == "__main__":
         res = torch.as_tensor(np.load("example.npy")/ 1000) 
         res_spikes = torch.as_tensor(np.load("example_spikes.npy"))
 
-    system = AdEx(V_rest=-0.060, event_driven=True, adjoint=True)
+    system = AdEx(V_rest=-0.060, event_driven=True, adjoint=True, device=device)
     times, voltage, adapt, event_times = system.simulate()
 
-    system2 = AdEx(V_rest=-0.065, event_driven=True).to(device)
+    system2 = AdEx(V_rest=-0.065, event_driven=True, device=device)
     times2, voltage2, adapt2, event_times2 = system2.simulate()
 
     loss = nn.MSELoss()
@@ -57,7 +57,7 @@ if __name__ == "__main__":
             volt2, = plt.plot(times_2, voltage2.detach().cpu().numpy()*1000, color="r", linewidth=2.0)
             fspikes = np.ravel(event_times.detach().cpu().numpy())
             plt.scatter(fspikes, np.full(fspikes.shape[0], 0))
-            plt.xlim([times[0], times[-1]])
+            plt.xlim([times_[0], times_[-1]])
             plt.ylim([-100, 20])
             plt.ylabel("Membrane Voltage (mV)", fontsize=16)
             plt.xlabel("Time", fontsize=13)

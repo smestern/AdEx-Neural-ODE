@@ -23,15 +23,16 @@ device = torch.device('cpu')
 
 class AdEx(nn.Module):
 
-    def __init__(self, V_rest=-0.068, adjoint=False, event_driven=False):
+    def __init__(self, V_rest=-0.068, adjoint=False, event_driven=False, device=torch.device('cpu')):
         super().__init__()
         #Must be in SI units
+        self.device = device
         self.V_rest = nn.Parameter(torch.as_tensor([V_rest]))
         self.V_reset = nn.Parameter(torch.as_tensor([-0.068]))
         self.V_T = nn.Parameter(torch.as_tensor([-0.045]))
         self.V_thres = nn.Parameter(torch.as_tensor([0.010]))
         self.delta_T = nn.Parameter(torch.as_tensor([0.010]))
-        self.t0 = torch.tensor([0.0])
+        self.t0 = torch.tensor([0.0]).to(device)
         self.V_intial = nn.Parameter(torch.tensor([-0.068]))
         self.w_intial = nn.Parameter(torch.tensor([0.0]))
         self.R = nn.Parameter(torch.tensor([1000e6]))
@@ -39,16 +40,17 @@ class AdEx(nn.Module):
         self.tau_w = nn.Parameter(torch.tensor([0.02]))
         self.a = nn.Parameter(torch.tensor([0.09e-9]))
         self.b = nn.Parameter(torch.tensor([2e-12]))
-        self.step_size = torch.tensor(5e-5)
-        self.t = torch.as_tensor(np.arange(0, 2, 5e-5))
+        self.step_size = torch.tensor(5e-5).to(device)
+        self.t = torch.as_tensor(np.arange(0, 2, 5e-5)).to(device)
         np_I = np.zeros(np.arange(0, 2, 5e-5).shape[0]+5)
         np_I[5561:11561] = -20e-12
         np_I[11561:25561] = 20e-12
-        self.I_ext = torch.as_tensor(np_I)
+        self.I_ext = torch.as_tensor(np_I).to(device)
 
         self.odeint = odeint_adjoint if adjoint else odeint
         self.forward = self._forward_no_reset if event_driven else self._forward_with_reset
         self.simulate = self._simulate_event if event_driven else self._simulate_full
+        self.to(device)
 
     def _forward_with_reset(self, t, state):
         V, w = state
@@ -118,9 +120,9 @@ class AdEx(nn.Module):
         adapt = [state[1][None]]
         times = [t0.reshape(-1)]
         for event_t in event_times:
-            tt = torch.linspace(float(t0), float(event_t), int((float(event_t) - float(t0)) * (1/self.step_size) + 1))[1:-1]
+            tt = torch.linspace(float(t0), float(event_t), int((float(event_t) - float(t0)) * (1/self.step_size) + 1)).to(self.device)[1:-1]
             tt = torch.cat([t0.reshape(-1), tt, event_t.reshape(-1)])
-            solution = odeint(self, state, tt, atol=5e-5, rtol=5e-5, method='euler', options={'step_size':self.step_size, 'perturb': True})
+            solution = odeint(self, state, tt, atol=5e-5, rtol=5e-5, method='euler', options={'step_size':self.step_size, 'perturb': False})
 
             voltage.append(solution[0])
             adapt.append(solution[1])

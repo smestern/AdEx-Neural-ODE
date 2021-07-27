@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
-from adex_node import AdEx
+from adex_nODE import AdEx
 from torchdiffeq import odeint, odeint_adjoint
 from torchdiffeq import odeint_event
 
