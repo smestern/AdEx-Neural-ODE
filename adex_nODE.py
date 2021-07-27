@@ -69,7 +69,6 @@ class AdEx(nn.Module):
         return dvdt, dwdt
 
     def event_fn(self, t, state):
-        
         V, w = state
         return -(V - self.V_thres)
 
@@ -93,7 +92,7 @@ class AdEx(nn.Module):
             #This ensures we get finding events (spikes) until there are not more, but will likely break autograd
             # come up with a way to fix it?
             try:
-                event_t, solution = odeint_event(self, state, t0, event_fn=self.event_fn, reverse_time=False, atol=1e-8, rtol=1e-8, odeint_interface=self.odeint, method='euler', options={'step_size':self.step_size})
+                event_t, solution = odeint_event(self, state, t0, event_fn=self.event_fn, reverse_time=False, atol=5e-5, rtol=5e-5, odeint_interface=self.odeint, method='euler', options={'step_size':self.step_size})
                 event_times.append(event_t)
 
                 state = self.state_update(tuple(s[-1] for s in solution))
@@ -119,9 +118,9 @@ class AdEx(nn.Module):
         adapt = [state[1][None]]
         times = [t0.reshape(-1)]
         for event_t in event_times:
-            tt = torch.linspace(float(t0), float(event_t), int((float(event_t) - float(t0)) * (1/self.step_size)))[1:-1]
+            tt = torch.linspace(float(t0), float(event_t), int((float(event_t) - float(t0)) * (1/self.step_size) + 1))[1:-1]
             tt = torch.cat([t0.reshape(-1), tt, event_t.reshape(-1)])
-            solution = odeint(self, state, tt, atol=1e-8, rtol=1e-8, method='euler', options={'step_size':self.step_size})
+            solution = odeint(self, state, tt, atol=5e-5, rtol=5e-5, method='euler', options={'step_size':self.step_size, 'perturb': True})
 
             voltage.append(solution[0])
             adapt.append(solution[1])
@@ -130,4 +129,4 @@ class AdEx(nn.Module):
             state = self.state_update(tuple(s[-1] for s in solution))
             t0 = event_t
 
-        return torch.cat(times), torch.cat(voltage, dim=0).reshape(-1), torch.cat(adapt, dim=0).reshape(-1), event_times
+        return torch.cat(times), torch.cat(voltage, dim=0).reshape(-1), torch.cat(adapt, dim=0).reshape(-1), torch.stack(event_times)
