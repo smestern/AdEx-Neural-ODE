@@ -7,7 +7,8 @@ import torch.nn as nn
 from adex_nODE import AdEx
 from torchdiffeq import odeint, odeint_adjoint
 from torchdiffeq import odeint_event
-
+import ot
+import copy
 torch.set_default_dtype(torch.float64)
 
 if torch.cuda.is_available():
@@ -17,18 +18,19 @@ else:
 
 if __name__ == "__main__":
 
-    with torch.no_grad():
-        res = torch.as_tensor(np.load("example.npy")/ 1000) 
-        res_spikes = torch.as_tensor(np.load("example_spikes.npy"))
+    res = torch.as_tensor(np.load("example.npy")/ 1000, dtype=torch.float64).to(device)
+    res_spikes = torch.as_tensor(np.load("example_spikes.npy")).to(device)
 
-    system = AdEx(V_rest=-0.060, event_driven=True, adjoint=True, device=device)
+    system = AdEx(V_rest=-0.070, event_driven=True, adjoint=True, device=device)
+    for param in copy.deepcopy(system.__dict__['_parameters']):
+        system = torch.nn.utils.weight_norm(system, name=param)
     times, voltage, adapt, event_times = system.simulate()
 
     system2 = AdEx(V_rest=-0.065, event_driven=True, device=device)
     times2, voltage2, adapt2, event_times2 = system2.simulate()
 
     loss = nn.MSELoss()
-
+    spike_loss = ot.wasserstein_1d
     optim = torch.optim.Adam([{
         'params': [system.b, system.a, system.w_intial], 'lr': 1e-13},
         {'params': [system.R], 'lr': 1e7}, #Carefully define the learning rate for each parameter. 
@@ -40,9 +42,9 @@ if __name__ == "__main__":
     for x in np.arange(500):
         optim.zero_grad()
         times, voltage, adapt, event_times = system.simulate()
-        out = loss(event_times[0], event_times2[0]) * 1000
-        out += loss(event_times[-1], event_times2[-1]) * 1000
-        out += loss(voltage[:40000], voltage2[:40000])
+        out = spike_loss(event_times, res_spikes) * 1000
+        #out += loss(event_times[-2], res_spikes[-1]) * 1000
+        out += loss(voltage[:40000], res[:40000])
         out.backward(retain_graph=True)
         optim.step() #gradient descent
         print("==== loss ====")
@@ -54,7 +56,7 @@ if __name__ == "__main__":
             times_2 = times2.detach().cpu().numpy()
             plt.clf()
             volt, = plt.plot(times_, voltage.detach().cpu().numpy() * 1000, color="C0", linewidth=2.0)
-            volt2, = plt.plot(times_2, voltage2.detach().cpu().numpy()*1000, color="r", linewidth=2.0)
+            volt2, = plt.plot(times_2[:40000], res.detach().cpu().numpy()*1000, color="r", linewidth=2.0)
             fspikes = np.ravel(event_times.detach().cpu().numpy())
             plt.scatter(fspikes, np.full(fspikes.shape[0], 0))
             plt.xlim([times_[0], times_[-1]])

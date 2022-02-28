@@ -30,7 +30,7 @@ class AdEx(nn.Module):
         self.V_rest = nn.Parameter(torch.as_tensor([V_rest]))
         self.V_reset = nn.Parameter(torch.as_tensor([-0.068]))
         self.V_T = nn.Parameter(torch.as_tensor([-0.045]))
-        self.V_thres = nn.Parameter(torch.as_tensor([0.010]))
+        self.V_thres = nn.Parameter(torch.as_tensor([0.000]))
         self.delta_T = nn.Parameter(torch.as_tensor([0.010]))
         self.t0 = torch.tensor([0.0]).to(device)
         self.V_intial = nn.Parameter(torch.tensor([-0.068]))
